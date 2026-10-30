@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>FraudShield — Risk Intelligence</title><link rel="stylesheet" href="/static/styles.css"></head>
+<body>
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-icon">✦</div><div>fraud<span>shield</span><small>RISK INTELLIGENCE</small></div></div>
+    <div class="sidebar-label">WORKSPACE</div>
+    <nav>
+      <a href="#overview" class="nav-item active"><span>◫</span> Overview</a>
+      <a href="#simulator" class="nav-item"><span>⬡</span> Risk simulator</a>
+      <a href="#transactions" class="nav-item"><span>≡</span> Transactions</a>
+      <a href="#model" class="nav-item"><span>◎</span> Model insights</a>
+      <a href="/docs" target="_blank" class="nav-item"><span>⌘</span> API documentation ↗</a>
+    </nav>
+    <div class="sidebar-bottom"><div class="status-line"><span class="status-dot"></span><span>DEMO ENVIRONMENT</span></div><div class="side-card"><div class="small-top">YOUR ML ENGINE</div><div class="tiny-heading">XGBoost · 8 signals</div><p>Model trained on artificial data for learning. Not for financial decisions.</p></div><div class="version">FRAUDSHIELD v1.0.0</div></div>
+  </aside>
+  <main class="main-content" id="overview">
+    <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> <strong>Overview</strong></div><div class="top-right"><span class="pill live"><span class="pulse-dot"></span> <span id="api-status">Connecting...</span></span><div class="avatar">FS</div></div></header>
+    <div class="page-body">
+      <div class="heading-row"><div><div class="eyebrow">RISK MONITORING / OVERVIEW</div><h1>Transaction intelligence<span class="heading-dot">.</span></h1><p class="subtitle">Monitor, score and explore transaction risk in real time.</p></div><button class="btn btn-outline" id="refresh">↻ &nbsp; Refresh data</button></div>
+      <div class="notice"><span class="notice-icon">ⓘ</span><span><b>Portfolio demo:</b> all data and labels are simulated. A high score indicates model-estimated risk, not proven fraud.</span><span class="notice-badge">EDUCATIONAL USE</span></div>
+      <section class="stats-grid">
+        <div class="stat-card"><div class="stat-top"><span>Total transactions</span><span class="stat-symbol purple">▤</span></div><div class="stat-value" id="total">0</div><div class="stat-foot">Across all stored records</div><div class="stat-line line-purple"></div></div>
+        <div class="stat-card"><div class="stat-top"><span>High-risk alerts</span><span class="stat-symbol red">⚑</span></div><div class="stat-value" id="high">0</div><div class="stat-foot"><span class="red-text" id="high-pct">0%</span> of all transactions</div><div class="stat-line line-red"></div></div>
+        <div class="stat-card"><div class="stat-top"><span>Needs review</span><span class="stat-symbol yellow">◷</span></div><div class="stat-value" id="review-count">0</div><div class="stat-foot">Requires human attention</div><div class="stat-line line-yellow"></div></div>
+        <div class="stat-card"><div class="stat-top"><span>Average risk score</span><span class="stat-symbol blue">◈</span></div><div class="stat-value"><span id="average">0.0</span><span class="value-suffix">/100</span></div><div class="stat-foot">Based on model predictions</div><div class="stat-line line-blue"></div></div>
+      </section>
+      <section class="chart-grid">
+        <div class="panel trend-panel"><div class="panel-top"><div><h2>Risk activity</h2><p>Model score across recent transactions</p></div><span class="subtle-tag">LATEST 100</span></div><div class="chart-wrap"><div class="y-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><svg id="risk-chart" viewBox="0 0 720 250" preserveAspectRatio="none" aria-label="Recent risk score chart"><defs><linearGradient id="fill-gradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b6aff" stop-opacity=".27"/><stop offset="100%" stop-color="#8b6aff" stop-opacity="0"/></linearGradient></defs><g class="grid-lines"><line x1="0" x2="720" y1="10" y2="10"/><line x1="0" x2="720" y1="68" y2="68"/><line x1="0" x2="720" y1="126" y2="126"/><line x1="0" x2="720" y1="184" y2="184"/><line x1="0" x2="720" y1="242" y2="242"/></g><path id="risk-fill" fill="url(#fill-gradient)"/><path id="risk-line" fill="none" stroke="#a38bff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="x-labels"><span>Older</span><span>Recent activity</span><span>Latest</span></div></div>
+        <div class="panel distribution-panel"><div class="panel-top"><div><h2>Risk distribution</h2><p>Classification breakdown</p></div><span class="subtle-tag">ALL TIME</span></div><div class="donut-wrap"><div class="donut" id="donut"><div class="donut-inner"><strong id="donut-total">0</strong><span>TRANSACTIONS</span></div></div></div><div class="legend"><div><i class="legend-dot green-dot"></i> Low risk <strong id="low-count">0</strong></div><div><i class="legend-dot yellow-dot"></i> Review <strong id="legend-review">0</strong></div><div><i class="legend-dot red-dot"></i> High risk <strong id="legend-high">0</strong></div></div></div>
+      </section>
+      <section class="bottom-grid">
+        <div class="panel simulator" id="simulator"><div class="panel-top"><div><h2>Transaction simulator <span class="sparkle">✧</span></h2><p>Try a transaction and see what your AI predicts</p></div><span class="subtle-tag green-tag">LIVE MODEL</span></div>
+          <form id="score-form"><div class="form-grid"><label>Amount (USD)<input type="number" name="amount" min="0.01" max="1000000" step="0.01" value="2450" required></label><label>Hour of day <select name="hour"><option value="2" selected>02:00 AM</option><option value="9">09:00 AM</option><option value="14">02:00 PM</option><option value="20">08:00 PM</option><option value="23">11:00 PM</option></select></label><label>Distance from home (km)<input type="number" name="distance_from_home" min="0" max="30000" step="0.1" value="650" required></label><label>Transactions last 24h<input type="number" name="velocity_24h" min="0" max="100" value="11" required></label><label>Account age (days)<input type="number" name="account_age_days" min="0" max="36500" value="14" required></label><label>Merchant risk (0–1)<input type="number" name="merchant_risk" min="0" max="1" step="0.01" value="0.82" required></label></div>
+          <div class="switch-row"><label class="checkbox-label"><input type="checkbox" name="is_foreign" checked> International transaction</label><label class="checkbox-label"><input type="checkbox" name="is_online" checked> Online purchase</label></div>
+          <div class="button-row"><button type="submit" class="btn btn-primary" id="score-btn">✦ &nbsp; Analyze transaction</button><button type="button" class="btn btn-soft" id="stream-btn">⇢ Stream event</button></div></form>
+          <div class="result" id="result" aria-live="polite"><span class="result-symbol">◎</span><div><strong>Your prediction will appear here</strong><p>Adjust the fields and click Analyze transaction.</p></div></div>
+        </div>
+        <div class="panel activity" id="model"><div class="panel-top"><div><h2>Model details</h2><p>What powers this system</p></div><span class="model-icon">✦</span></div><div class="model-label">CLASSIFICATION ENGINE</div><h3>XGBoost <span>v1.0</span></h3><div class="model-divider"></div><div class="model-stat"><span>ROC-AUC (synthetic test)</span><strong id="auc">—</strong></div><div class="model-stat"><span>Training samples</span><strong id="samples">—</strong></div><div class="model-stat"><span>Features analyzed</span><strong>8</strong></div><div class="model-stat"><span>Storage</span><strong>SQLite / PostgreSQL</strong></div><div class="model-stat"><span>Streaming</span><strong id="kafka-state">Local mode</strong></div><div class="tip-box"><span>💡</span><div><strong>Try the full pipeline</strong><p>Use Docker Compose for PostgreSQL, Kafka, FastAPI, and Streamlit together.</p></div></div><button class="btn btn-demo" id="demo-btn">＋ &nbsp; Generate 55 demo transactions</button></div>
+      </section>
+      <section class="panel table-panel" id="transactions"><div class="panel-top"><div><h2>Recent transactions</h2><p>Newest events processed by your risk engine</p></div><span class="subtle-tag">LIVE FEED</span></div><div class="table-scroll"><table><thead><tr><th>TRANSACTION</th><th>AMOUNT</th><th>RISK SCORE</th><th>CLASSIFICATION</th><th>SOURCE</th><th>TIME</th></tr></thead><tbody id="rows"><tr><td colspan="6" class="empty-row">Loading...</td></tr></tbody></table></div></section>
+      <footer>FraudShield © 2026 &nbsp; • &nbsp; Educational ML + SWE portfolio project &nbsp; • &nbsp; Built with Python, FastAPI, XGBoost, SQL & Kafka</footer>
+    </div>
+  </main>
+</div>
+<div id="toast" role="status"></div>
+<script src="/static/app.js"></script>
+</body></html>
