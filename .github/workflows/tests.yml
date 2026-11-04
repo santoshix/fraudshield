@@ -18,3 +18,19 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Run tests in an isolated SQLite database
         run: python -m pytest -q
+
+  docker-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the full pipeline
+        run: docker compose up --build -d
+      - name: Verify Kafka worker writes scores to PostgreSQL
+        run: python tests/smoke_compose.py
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose ps && docker compose logs --tail=150
+      - name: Stop services
+        if: always()
+        run: docker compose down -v
