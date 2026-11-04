@@ -1,6 +1,6 @@
-# FraudShield — Real-Time Fraud Detection & Risk Engine
+# FraudShield — Fraud Risk Scoring & Streaming Demo
 
-A complete **student portfolio project** with XGBoost machine learning, FastAPI REST API, a visual browser dashboard, SQL storage, a Streamlit analytics dashboard, and optional Kafka streaming + PostgreSQL with Docker.
+An educational **student portfolio project** for synthetic-transaction risk scoring using XGBoost, FastAPI, SQLite, and Streamlit. An optional Docker Compose setup adds Kafka, a background consumer, and PostgreSQL; the local quick start scores transactions directly without a queue.
 
 > **IMPORTANT:** Training data is entirely **synthetic** (invented examples with simulated labels). Risk scores are model estimates **not verified fraud**. This application is for learning only. **Never use for actual payments, fraud investigations or financial decisions.** It does not implement real payment processing or enterprise-grade security/monitoring.
 
@@ -114,6 +114,8 @@ From the project folder, with dependencies installed:
 
 **Mac / Linux:** `.venv/bin/python -m pytest -q`
 
+GitHub Actions runs the test suite for pushes and pull requests (see `.github/workflows/tests.yml`). The tests cover API responses and input validation. They are not a substitute for end-to-end Kafka/PostgreSQL integration tests, which have not been established here.
+
 ## 6. What's actually happening?
 
 `Transaction inputs → 8 numeric features → XGBoost probability → risk score 0–100 → risk status → database → dashboards`
@@ -128,7 +130,7 @@ These are **illustrative, not calibrated banking thresholds**. The AI predicts r
 
 ## 7. Resume / interview explanation
 
-> "Built an end-to-end educational fraud-risk scoring platform using Python, XGBoost, FastAPI, SQLAlchemy and PostgreSQL. Implemented real-time streaming ingestion through Kafka, a background consumer, risk classifications, and monitoring dashboards. Used entirely synthetic training data and reported validation metrics with clear limitations."
+> "Built an educational fraud-risk scoring API and analytics dashboards with XGBoost, FastAPI, and SQLite, trained and evaluated on synthetic transactions. Implemented a separate Docker Compose streaming example using Kafka, a worker, and PostgreSQL; streaming is not used in the default local mode."
 
 **To turn this into a stronger portfolio:** add a suitably licensed, real-world dataset with an appropriate label definition, time-based validation, severe class imbalance handling, drift monitoring, calibration checks, tests for duplicate Kafka deliveries and idempotent writes, authentication, secret management, and responsible decision-review policies. Deploy only with properly configured cloud security and budgets.
 
