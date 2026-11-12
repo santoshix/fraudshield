@@ -2,22 +2,45 @@
 import json
 import os
 import random
+import secrets
+import time
+from collections import defaultdict, deque
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, func, case
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from app.db import Transaction, SessionLocal, get_db, init_db
 from app.risk import get_model, get_model_metrics, predict_risk
 from app.schemas import TransactionInput
 
 STATIC = Path(__file__).parent / "static"
+
+_request_times = defaultdict(deque)
+
+def api_guard(request: Request):
+    secret = os.getenv("FRAUDSHIELD_API_KEY", "")
+    if secret and not secrets.compare_digest(request.headers.get("X-API-Key", ""), secret):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    limit = int(os.getenv("FRAUDSHIELD_RATE_LIMIT", "120"))
+    if limit < 1:
+        return
+    peer = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+    hits = _request_times[peer]
+    while hits and hits[0] < now - 60:
+        hits.popleft()
+    if len(hits) >= limit:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    hits.append(now)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,7 +59,7 @@ def dashboard():
 def health():
     return {"status": "ok", "model": "XGBoost", "database": "connected", "kafka_enabled": bool(os.getenv("KAFKA_BOOTSTRAP_SERVERS"))}
 
-@app.get("/api/model")
+@app.get("/api/model", dependencies=[Depends(api_guard)])
 def model_info():
     return get_model_metrics()
 
@@ -50,28 +73,58 @@ def serialize(t: Transaction):
         "created_at": t.created_at.replace(tzinfo=timezone.utc).isoformat() if t.created_at.tzinfo is None else t.created_at.isoformat(),
     }
 
-def save_transaction(data: TransactionInput, db: Session, source="API", created_at=None):
+def save_transaction(data: TransactionInput, db: Session, source="API", created_at=None, transaction_id=None):
     score, status = predict_risk(data)
     record = Transaction(
-        transaction_id="TXN-" + uuid.uuid4().hex[:10].upper(),
+        transaction_id=transaction_id or ("TXN-" + uuid.uuid4().hex[:10].upper()),
         **data.model_dump(), risk_score=score, status=status, source=source,
         created_at=created_at or datetime.now(timezone.utc),
     )
     db.add(record)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        if not transaction_id:
+            raise
+        existing = db.scalar(select(Transaction).where(Transaction.transaction_id == transaction_id))
+        if existing is None:
+            raise
+        return serialize(existing)
     db.refresh(record)
     return serialize(record)
 
-@app.post("/api/score")
+@app.post("/api/score", dependencies=[Depends(api_guard)])
 def score_transaction(data: TransactionInput, db: Session = Depends(get_db)):
     return save_transaction(data, db)
 
-@app.get("/api/transactions")
+@app.get("/api/real-model", dependencies=[Depends(api_guard)])
+def real_model_info():
+    from app.real_risk import load_real_model
+    try:
+        _, metrics = load_real_model()
+        return metrics
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.post("/api/score-real", dependencies=[Depends(api_guard)])
+def score_real(features: dict[str, float]):
+    from app.real_risk import score_real_transaction
+    try:
+        return score_real_transaction(features)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@app.get("/api/transactions", dependencies=[Depends(api_guard)])
 def transactions(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
     results = db.scalars(select(Transaction).order_by(Transaction.created_at.desc(), Transaction.id.desc()).limit(limit)).all()
     return [serialize(t) for t in results]
 
-@app.get("/api/metrics")
+@app.get("/api/metrics", dependencies=[Depends(api_guard)])
 def metrics(db: Session = Depends(get_db)):
     count, high, review, avg, volume = db.execute(
         select(func.count(Transaction.id),
@@ -91,7 +144,7 @@ def metrics(db: Session = Depends(get_db)):
         "recent_scores": [{"score": t.risk_score, "time": serialize(t)["created_at"]} for t in reversed(recent)]
     }
 
-@app.post("/api/demo")
+@app.post("/api/demo", dependencies=[Depends(api_guard)])
 def create_demo_transactions(count: int = Query(55, ge=1, le=300), db: Session = Depends(get_db)):
     rng = random.Random(2026 + count)
     statuses = {"HIGH RISK": 0, "REVIEW": 0, "LOW RISK": 0}
@@ -117,7 +170,7 @@ def create_demo_transactions(count: int = Query(55, ge=1, le=300), db: Session =
     return {"created": count, "status_breakdown": statuses,
             "note": "All generated records are artificial, and fraud predictions are not verified labels."}
 
-@app.post("/api/ingest")
+@app.post("/api/ingest", dependencies=[Depends(api_guard)])
 def ingest_transaction(data: TransactionInput, db: Session = Depends(get_db)):
     """Submit to Kafka if configured, otherwise score directly (local quick-start mode)."""
     brokers = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "").strip()
@@ -130,7 +183,7 @@ def ingest_transaction(data: TransactionInput, db: Session = Depends(get_db)):
             value_serializer=lambda x: json.dumps(x).encode("utf-8"),
             request_timeout_ms=6000, max_block_ms=6000,
         )
-        producer.send("fraud.incoming", data.model_dump()).get(timeout=8)
+        producer.send("fraud.incoming", {"event_id": uuid.uuid4().hex, "transaction": data.model_dump()}).get(timeout=8)
         producer.flush(timeout=8)
         producer.close(timeout=5)
         return {"mode": "kafka", "status": "queued", "note": "Kafka worker will score and store the transaction shortly."}
