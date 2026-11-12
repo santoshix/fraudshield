@@ -30,8 +30,16 @@ def main():
                     for message in messages:
                         with SessionLocal() as session:
                             try:
-                                data = TransactionInput.model_validate(message.value)
-                                scored = save_transaction(data, session, "KAFKA")
+                                payload = message.value
+                                if not isinstance(payload, dict) or "event_id" not in payload:
+                                    raise ValueError("Kafka event missing event_id")
+                                event_id = str(payload["event_id"])
+                                if len(event_id) != 32 or any(c not in "0123456789abcdef" for c in event_id):
+                                    raise ValueError("Invalid event ID")
+                                data = TransactionInput.model_validate(payload["transaction"])
+                                scored = save_transaction(
+                                    data, session, "KAFKA", transaction_id="EVT-" + event_id
+                                )
                                 logging.info("Scored %s: %.2f (%s)", scored["transaction_id"], scored["risk_score"], scored["status"])
                                 consumer.commit()  # commit only on successful DB write
                             except Exception:
