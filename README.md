@@ -2,7 +2,7 @@
 
 An educational **student portfolio project** for synthetic-transaction risk scoring using XGBoost, FastAPI, SQLite, and Streamlit. An optional Docker Compose setup adds Kafka, a background consumer, and PostgreSQL; the local quick start scores transactions directly without a queue.
 
-> **IMPORTANT:** Training data is entirely **synthetic** (invented examples with simulated labels). Risk scores are model estimates **not verified fraud**. This application is for learning only. **Never use for actual payments, fraud investigations or financial decisions.** It does not implement real payment processing or enterprise-grade security/monitoring.
+> **IMPORTANT:** The default dashboard's training data is **synthetic** (invented examples with simulated labels). Risk scores are model estimates **not verified fraud**. This application is for learning only. **Never use for actual payments, fraud investigations or financial decisions.** It does not implement real payment processing or enterprise-grade security/monitoring.
 
 **Want to see the design immediately?** Open `dashboard_preview.html` in your browser or view `dashboard_mockup.png`. It includes preloaded sample results and requires no Python, but its buttons do not run the actual AI. For working predictions, follow the setup below.
 
@@ -142,3 +142,20 @@ These are **illustrative, not calibrated banking thresholds**. The AI predicts r
 - Streamlit says cannot connect: start `python run.py` first.
 - Kafka unavailable: run `docker compose up --build` for the full pipeline or use the ordinary **Analyze transaction** button.
 - Docker build may download large images and packages; this is normal for the full stack.
+
+## 9. Real historical fraud benchmark (one integrated FraudShield application)
+
+FraudShield now contains an **optional real-data XGBoost mode inside the same FastAPI app**. It uses the public, anonymized ULB historical credit-card dataset (30 columns: Time, V1–V28, Amount), which is not interchangeable with the existing eight-feature synthetic demo. This is one repository and one application, not a second project.
+
+1. Download `creditcard.csv` from https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud, following the dataset's usage conditions.
+2. Place it in `data/creditcard.csv` (not committed to Git).
+3. From the repository root, run `python -m ml.train_real` with your virtual environment.
+4. Restart FraudShield, then open `/api/real-model` to review metrics and `/docs` to try `POST /api/score-real` with all 30 named feature values.
+
+The historical benchmark uses chronological train/validation/test splits; walk-forward validation within the training partition; a review threshold chosen on validation F1; and held-out ROC-AUC, average precision, precision, recall, F1 and Brier score. The ULB dataset is historical and anonymized, so these results do not prove real-time banking accuracy. The dataset must be downloaded locally and the training script run before this mode becomes available. The current eight-feature UI remains an educational demo.
+
+## 10. Security and Kafka reliability
+
+- To require an API key for non-health API endpoints, set `FRAUDSHIELD_API_KEY` in your local environment and send it as `X-API-Key`. **Never put it in browser JavaScript or Git**. The existing browser dashboard does not support authenticated sessions; leaving the key unset is for trusted, local demos only.
+- `FRAUDSHIELD_RATE_LIMIT` defaults to 120 requests/minute per IP **per server process**. This in-memory limit is not distributed protection; a production deployment needs a reverse proxy, shared rate limiting, TLS, proper authentication and secret management.
+- Kafka messages now contain an event ID and the consumer writes a stable unique ID to the database. Replaying the same event cannot create a second record, and the consumer commits after the write is confirmed. The producer should retain a stable event ID when clients retry uncertain sends for full end-to-end deduplication.

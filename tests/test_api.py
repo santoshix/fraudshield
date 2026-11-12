@@ -43,3 +43,23 @@ def teardown_module():
 
     engine.dispose()
     _temp_dir.cleanup() 
+
+def test_kafka_event_deduplication():
+    from app.main import save_transaction
+    from app.db import SessionLocal
+    from app.schemas import TransactionInput
+    with TestClient(app):
+        with SessionLocal() as db:
+            data = TransactionInput.model_validate(SAMPLE)
+            transaction_id = "EVT-" + "a" * 32
+            first = save_transaction(data, db, "KAFKA", transaction_id=transaction_id)
+            second = save_transaction(data, db, "KAFKA", transaction_id=transaction_id)
+            assert first["transaction_id"] == second["transaction_id"]
+            assert first["risk_score"] == second["risk_score"]
+
+
+def test_api_key_optional_protection(monkeypatch):
+    monkeypatch.setenv("FRAUDSHIELD_API_KEY", "test-secret")
+    with TestClient(app) as client:
+        assert client.post("/api/score", json=SAMPLE).status_code == 401
+        assert client.post("/api/score", json=SAMPLE, headers={"X-API-Key": "test-secret"}).status_code == 200
