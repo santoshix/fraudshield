@@ -143,6 +143,34 @@ These are **illustrative, not calibrated banking thresholds**. The AI predicts r
 - Kafka unavailable: run `docker compose up --build` for the full pipeline or use the ordinary **Analyze transaction** button.
 - Docker build may download large images and packages; this is normal for the full stack.
 
+## Historical fraud benchmark — measured results
+
+The optional real-transaction XGBoost pipeline has now been **run on the ULB anonymized credit-card fraud dataset**. The published held-out results are saved in [`benchmarks/real_metrics.json`](benchmarks/real_metrics.json). These are outcomes from a chronological **60% training / 20% validation / 20% test** split on **283,726 rows after cleaning** (56,746 held-out test transactions).
+
+| Metric | Held-out result |
+|---|---:|
+| ROC-AUC | **0.9815** |
+| Average precision (PR-AUC) | **0.7906** |
+| Precision | **88.33%** |
+| Recall | **71.62%** |
+| F1 score | **0.7910** |
+| Brier score | **0.00078** |
+| Selected threshold (validation set) | **0.95** |
+
+Three walk-forward training-period validation folds are also recorded in the JSON. This is a **historical research benchmark**, not evidence of safe production credit-card fraud detection. The base rate is extremely low, and model calibration/drift on future transactions are unverified.
+
+### Use the trained model in the same FraudShield application
+
+The repository intentionally excludes the original CSV and serialized model binary. They must be kept outside Git. If you have the separately supplied `FraudShield_Real_Model_Ready.zip`, extract the archive into the **project root** so it produces:
+
+```text
+models/
+  fraud_real_xgboost.joblib
+  real_metrics.json
+```
+
+Then run `python run.py` using the project's virtual environment; visit `http://127.0.0.1:8000/api/real-model` for the real-model metrics or `http://127.0.0.1:8000/docs` for `POST /api/score-real` (requires 30 anonymized feature values). To reproduce training instead, put `creditcard.csv` in `data/` and run `python -m ml.train_real`. **Only load model binaries you trust**, because `joblib` files can execute code when loaded.
+
 ## 9. Real historical fraud benchmark (one integrated FraudShield application)
 
 FraudShield now contains an **optional real-data XGBoost mode inside the same FastAPI app**. It uses the public, anonymized ULB historical credit-card dataset (30 columns: Time, V1–V28, Amount), which is not interchangeable with the existing eight-feature synthetic demo. This is one repository and one application, not a second project.
