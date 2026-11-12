@@ -11,8 +11,9 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import (
     average_precision_score, f1_score, precision_score, recall_score,
-    roc_auc_score,
+    roc_auc_score, brier_score_loss,
 )
+from sklearn.model_selection import TimeSeriesSplit
 from xgboost import XGBClassifier
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +57,23 @@ def train_real_dataset(csv_path=DATA_PATH):
         objective="binary:logistic", eval_metric="logloss",
         random_state=42, n_jobs=2,
     )
+    # Walk-forward validation on the training period, before final fit.
+    cv_roc_auc, cv_average_precision = [], []
+    for train_idx, check_idx in TimeSeriesSplit(n_splits=3).split(X_train):
+        fold_y = y_train.iloc[train_idx]
+        check_y = y_train.iloc[check_idx]
+        if fold_y.nunique() < 2 or check_y.nunique() < 2:
+            continue
+        fold_model = XGBClassifier(
+            n_estimators=150, max_depth=4, learning_rate=0.05,
+            scale_pos_weight=float((fold_y == 0).sum() / (fold_y == 1).sum()),
+            objective="binary:logistic", eval_metric="logloss",
+            random_state=42, n_jobs=2,
+        )
+        fold_model.fit(X_train.iloc[train_idx], fold_y)
+        fold_probs = fold_model.predict_proba(X_train.iloc[check_idx])[:, 1]
+        cv_roc_auc.append(float(roc_auc_score(check_y, fold_probs)))
+        cv_average_precision.append(float(average_precision_score(check_y, fold_probs)))
     model.fit(X_train, y_train)
     val_probs = model.predict_proba(val[FEATURES])[:, 1]
     thresholds = np.arange(0.05, 0.96, 0.05)
@@ -75,6 +93,10 @@ def train_real_dataset(csv_path=DATA_PATH):
         "decision_threshold": round(threshold, 3),
         "roc_auc": round(float(roc_auc_score(test["Class"], test_probs)), 4),
         "average_precision": round(float(average_precision_score(test["Class"], test_probs)), 4),
+        "walk_forward_cv_roc_auc": [round(x, 4) for x in cv_roc_auc],
+        "walk_forward_cv_average_precision": [round(x, 4) for x in cv_average_precision],
+        "test_brier_score": round(float(brier_score_loss(test["Class"], test_probs)), 5),
+        "calibration_note": "Brier score reported; predictions are not calibrated for real-world decisions.",
         "precision": round(float(precision_score(test["Class"], predicted, zero_division=0)), 4),
         "recall": round(float(recall_score(test["Class"], predicted, zero_division=0)), 4),
         "f1": round(float(f1_score(test["Class"], predicted, zero_division=0)), 4),
