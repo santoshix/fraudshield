@@ -9,3 +9,7 @@ models/
 *.pyc
 
 .venv-fraud/
+
+# Local real dataset (do not commit historical transactions)
+data/*
+!data/.gitkeep
