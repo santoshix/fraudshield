@@ -36,6 +36,12 @@ services:
 
   api:
     build: .
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5)"]
+      interval: 5s
+      timeout: 8s
+      retries: 40
+      start_period: 20s
     ports:
       - '8000:8000'
     environment:
@@ -58,6 +64,8 @@ services:
     volumes:
       - fraud_models:/project/models
     depends_on:
+      api:
+        condition: service_healthy
       postgres:
         condition: service_healthy
       kafka:
