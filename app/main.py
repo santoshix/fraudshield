@@ -4,20 +4,20 @@ import os
 import random
 import secrets
 import time
-from collections import defaultdict, deque
 import uuid
+from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, Depends, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import select, func, case
-from sqlalchemy.orm import Session
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from app.db import Transaction, SessionLocal, get_db, init_db
+from app.db import Transaction, get_db, init_db
 from app.risk import get_model, get_model_metrics, predict_risk
 from app.schemas import TransactionInput
 
@@ -45,7 +45,7 @@ def api_guard(request: Request):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    get_model()   # auto-train locally the first time you start
+    get_model()
     yield
 
 app = FastAPI(title="FraudShield | Fraud Detection & Risk Engine", version="1.0.0", lifespan=lifespan)
@@ -121,7 +121,7 @@ def score_real(features: dict[str, float]):
 
 @app.get("/api/historical-benchmark", dependencies=[Depends(api_guard)])
 def historical_benchmark():
-    """Published, reproducible held-out results; no local model required."""
+    """Serve the committed benchmark report without loading model binaries."""
     report = Path(__file__).resolve().parents[1] / "benchmarks" / "real_metrics.json"
     if not report.is_file():
         raise HTTPException(status_code=503, detail="Published benchmark report unavailable")
@@ -130,7 +130,7 @@ def historical_benchmark():
 
 @app.get("/api/historical-samples", dependencies=[Depends(api_guard)])
 def historical_samples(limit: int = Query(20, ge=1, le=30)):
-    """Score sampled held-out ULB rows only when the local dataset and model exist."""
+    """Score local historical test rows when both required artifacts exist."""
     import numpy as np
     import pandas as pd
     from ml.train_real import DATA_PATH, FEATURES
