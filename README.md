@@ -120,7 +120,14 @@ Use your virtual-environment Python where appropriate. This writes `models/fraud
 
 **Option B — use the separately provided trained ZIP:** Extract its `models/` directory to the project root, using model files from a source you trust. Serialized joblib files can execute code on load; **never load untrusted model binaries**.
 
-Start `run.py` and open the **Historical real data** tab at http://127.0.0.1:8000. The published benchmark cards work without the optional CSV or model. Click **Load real held-out predictions** to score 20 spread-out historical test rows once both `data/creditcard.csv` and `models/fraud_real_xgboost.joblib` plus `models/real_metrics.json` are installed. The app deliberately does not display invented live data.\n\nAdditional endpoints:\n\n- **Published historical benchmark:** `GET /api/historical-benchmark`\n- **Local historical held-out samples:** `GET /api/historical-samples?limit=20` (requires dataset and trained model)\n\nStart `run.py` and visit:
+Start `run.py` and open the **Historical real data** tab at http://127.0.0.1:8000. The published benchmark cards work without the optional CSV or model. Click **Load real held-out predictions** to score 20 spread-out historical test rows once both `data/creditcard.csv` and `models/fraud_real_xgboost.joblib` plus `models/real_metrics.json` are installed. The app deliberately does not display invented live data.
+
+Additional endpoints:
+
+- **Published historical benchmark:** `GET /api/historical-benchmark`
+- **Local historical held-out samples:** `GET /api/historical-samples?limit=20` (requires dataset and trained model)
+
+Start `run.py` and visit:
 
 - **Historical model evaluation:** http://127.0.0.1:8000/api/real-model
 - **Historical inference API:** `POST /api/score-real` at http://127.0.0.1:8000/docs
