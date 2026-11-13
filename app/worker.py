@@ -41,7 +41,7 @@ def main():
                                     data, session, "KAFKA", transaction_id="EVT-" + event_id
                                 )
                                 logging.info("Scored %s: %.2f (%s)", scored["transaction_id"], scored["risk_score"], scored["status"])
-                                consumer.commit()  # commit only on successful DB write
+                                consumer.commit()  # advance the offset after persistence succeeds
                             except Exception:
                                 session.rollback()
                                 logging.exception("Kafka message failed; not committing its offset")
