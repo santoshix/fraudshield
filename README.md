@@ -1,61 +1,40 @@
 # FraudShield — Fraud Detection & Risk Scoring
 
-**An end-to-end, educational fraud-risk scoring system** using XGBoost, FastAPI, PostgreSQL, Kafka, Docker, and interactive dashboards. It includes a synthetic transaction demo and a separately trained benchmark on anonymized **historical real credit-card transactions**.
+FraudShield combines a **historical credit-card fraud benchmark** with a separate, interactive **synthetic transaction simulator**. It uses XGBoost, FastAPI, SQLite/PostgreSQL, Kafka, Docker, and a browser dashboard.
 
-**Historical-data held-out benchmark:** ROC-AUC **0.9815** · Average precision (PR-AUC) **0.7906** · Precision **88.33%** · Recall **71.62%** · F1 **0.7910**
-
-> **Scope and safety:** FraudShield is a student portfolio project, not a real payment processor or production fraud decision system. The historical dashboard shows published real-data benchmark metrics, while the optional synthetic simulator uses artificial transactions. The historical benchmark has not been validated for modern, live banking use. Risk scores are estimates, not verified fraud. Do not use it for real financial decisions.
-
-![FraudShield dashboard mockup](dashboard_mockup.png)
+![FraudShield dashboard preview](dashboard_mockup.png)
 
 ## What it does
 
-- **Scores transactions:** an eight-feature XGBoost model estimates risk and classifies transactions as LOW RISK, REVIEW, or HIGH RISK in the default synthetic demo.
-- **Serves a REST API:** FastAPI provides scoring, transactions, aggregate metrics, model information, and automatic OpenAPI docs.
-- **Stores and displays results:** SQLite for a lightweight local demo, or PostgreSQL in Docker; a browser dashboard plus optional Streamlit analytics.
-- **Demonstrates event streaming:** Docker Compose can run a Kafka producer and independent worker. Event IDs and a unique database constraint guard against duplicate writes on event redelivery.
-- **Supports historical benchmarking:** a second XGBoost model inside the same FastAPI application can score the 30 features of the ULB credit-card dataset, once its separately supplied model artifact is installed or trained.
-- **Includes engineering checks:** pytest, GitHub Actions, Docker/Kafka smoke tests, optional API-key checks, and a per-process rate limiter.
+- **Historical benchmark (default dashboard tab):** shows results from an XGBoost classifier trained on the anonymized ULB credit-card dataset. With the local CSV and model installed, it also scores sampled held-out transactions.
+- **Synthetic demo:** scores simulated transactions using a different eight-feature XGBoost model; shows risk charts, transaction history, and a scoring form.
+- **API and persistence:** FastAPI endpoints, SQLite for local use, or PostgreSQL with Docker.
+- **Streaming:** Kafka forwards demo transactions to a worker that scores and stores them. Replayed events with the same event ID do not create duplicate database records.
+- **Verification:** Python tests, dashboard JavaScript checks, and a Docker integration test run in GitHub Actions.
 
-### Architecture
+**Scope:** This is an educational portfolio application, not a production payment processor. The ULB benchmark uses historical anonymized data and has not been validated against current transaction patterns. Synthetic demo scores should not be treated as real fraud decisions.
 
-```text
-Default demo:  Browser/Streamlit → FastAPI → XGBoost (8 synthetic features)
-                                           ↓
-                                       SQLite
-Docker demo:   Browser/Streamlit → FastAPI → Kafka topic → Worker → XGBoost
-                                                             ↓
-                                                         PostgreSQL
+## Historical model results
 
-Historical model: 30 ULB input features → FastAPI /api/score-real
-                                          → separately trained XGBoost
-```
+Dataset: [ULB Credit Card Fraud Detection](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) · **283,726 cleaned records** · **56,746 held-out test records**
 
-The browser dashboard defaults to a **Historical real data** tab with published ULB held-out metrics and optional, locally scored held-out samples. The separate **Synthetic demo** tab retains the eight-feature simulator, chart, Kafka demo and generated transactions. These two modes use different model input schemas and their predictions are never pooled.
-
-## Historical fraud benchmark
-
-Trained and evaluated on the historical, anonymized [ULB Credit Card Fraud Detection dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud). After cleaning, **283,726** transactions remained; **56,746** were reserved as a chronological held-out test set.
-
-| Metric | Held-out test result |
+| Held-out metric | Value |
 |---|---:|
 | ROC-AUC | **0.9815** |
-| Average precision (PR-AUC) | **0.7906** |
+| Average precision | **0.7906** |
 | Precision | **88.33%** |
 | Recall | **71.62%** |
 | F1 | **0.7910** |
 | Brier score | **0.00078** |
-| Decision threshold chosen on validation data | **0.95** |
+| Validation-selected decision threshold | **0.95** |
 
-**Evaluation design:** chronological 60% train / 20% validation / 20% test split, three walk-forward validation folds within the training period, class-imbalance weighting, and threshold selection on validation F1. The held-out test set was not used for threshold selection. The Brier score is a diagnostic, **not** evidence of completed probability calibration.
+Data is sorted by transaction time and split chronologically: 60% training, 20% validation, 20% testing. The training portion includes three walk-forward validation folds; the decision threshold is selected on validation data, not the held-out test set. Brier score is reported for evaluation; the probabilities are **not claimed to be calibrated**.
 
-Full metrics, including walk-forward results: [`benchmarks/real_metrics.json`](benchmarks/real_metrics.json).
+See [the benchmark JSON](benchmarks/real_metrics.json) for the full report and fold results.
 
-**Limitations:** Historical data and anonymized features limit interpretation; the test metrics do not demonstrate robustness to current transaction patterns, dataset drift, or a real payments environment.
+## Run locally
 
-## Quick start — working synthetic demo
-
-Install **Python 3.11 or 3.12**, clone this repository, and open its root in a terminal.
+Requires Python 3.11 or 3.12. Clone the repository, then run the following from the project folder.
 
 **Windows PowerShell**
 
@@ -73,112 +52,88 @@ python3 -m venv .venv
 .venv/bin/python run.py
 ```
 
-The first run automatically trains the **synthetic-data** XGBoost model and initializes a local SQLite database. No external dataset or API key is needed to try this local mode.
+Open the [dashboard](http://127.0.0.1:8000) or [API docs](http://127.0.0.1:8000/docs). The first launch trains the synthetic model and creates a local SQLite database. No dataset download is needed for the synthetic demo or the historical **summary** cards.
 
-Open:
+The dashboard opens on **Historical real data**. Choose **Synthetic demo** to try **Analyze transaction**, **Generate 55 demo transactions**, or **Stream event** (direct processing unless Kafka is configured).
 
-- **Dashboard:** http://127.0.0.1:8000
-- **API documentation:** http://127.0.0.1:8000/docs
+For a non-interactive layout preview, open [dashboard_preview.html](dashboard_preview.html). Its controls do not call the model.
 
-In the dashboard, choose **Synthetic demo**, click **Generate 55 demo transactions**, adjust transaction features, and try **Analyze transaction**. **Stream event** scores directly in local mode, but uses Kafka when the Docker configuration is enabled.
+### Reproduce historical scoring
 
-**Static preview only:** open [`dashboard_preview.html`](dashboard_preview.html) in a browser; it shows mock data and its buttons do not run the model.
+The ULB CSV and trained binary files are intentionally not committed to the repository.
 
-### Optional Streamlit analytics
+1. Download `creditcard.csv` from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and place it at `data/creditcard.csv`.
+2. Train the historical model:
 
-Keep the API running and start a second terminal:
+   ```bash
+   python -m ml.train_real
+   ```
 
-```powershell
-.venv\Scripts\python.exe -m streamlit run streamlit_app.py
-```
+3. Start `run.py`; open **Historical real data** and select **Load real held-out predictions**.
 
-Visit http://127.0.0.1:8501. On macOS/Linux, replace the Python executable with `.venv/bin/python`.
+Training saves `models/fraud_real_xgboost.joblib` and `models/real_metrics.json`. The historical-samples button requires **both** the CSV and these local artifacts. If the artifacts are missing, the UI explains what to install rather than inventing results. Only load model binaries from sources you trust.
 
-### Docker / Kafka / PostgreSQL
+Historical API routes:
 
-Install and start Docker Desktop, then:
+| Endpoint | Use |
+|---|---|
+| `GET /api/historical-benchmark` | Published held-out metrics; no local model required |
+| `GET /api/historical-samples?limit=20` | Score locally stored held-out rows |
+| `GET /api/real-model` | Local historical model metadata |
+| `POST /api/score-real` | Score 30 numerical ULB features (`Time`, `V1`–`V28`, `Amount`) |
+
+The synthetic API uses **eight different features** at `POST /api/score`. These models and results are not interchangeable.
+
+### Docker, Kafka, and PostgreSQL
+
+Start Docker Desktop, then run:
 
 ```bash
 docker compose up --build
 ```
 
-The Compose stack runs five services: `api`, `postgres`, `kafka`, `worker`, and `streamlit`. Visit http://localhost:8000 (dashboard), http://localhost:8000/docs (API), or http://localhost:8501 (Streamlit). Use `docker compose down` to stop. **`docker compose down -v` deletes persisted demo data and model volumes.**
-
-Kafka route: `/api/ingest` → `fraud.incoming` → worker → inference → PostgreSQL. The worker stores a stable event ID so replaying the *same event ID* does not create a duplicate database record. This does not guarantee end-to-end exactly-once delivery across independent client retries.
-
-## Run the historical-data model (same project)
-
-This mode is **optional**, and its binary model and dataset are excluded from GitHub.
-
-**Option A — reproduce training:** Download `creditcard.csv` from the [ULB/Kaggle dataset](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud), review its usage conditions, and place it at `data/creditcard.csv`. From the project root, run:
-
-```bash
-python -m ml.train_real
-```
-
-Use your virtual-environment Python where appropriate. This writes `models/fraud_real_xgboost.joblib` and `models/real_metrics.json`.
-
-**Option B — use the separately provided trained ZIP:** Extract its `models/` directory to the project root, using model files from a source you trust. Serialized joblib files can execute code on load; **never load untrusted model binaries**.
-
-Start `run.py` and open the **Historical real data** tab at http://127.0.0.1:8000. The published benchmark cards work without the optional CSV or model. Click **Load real held-out predictions** to score 20 spread-out historical test rows once both `data/creditcard.csv` and `models/fraud_real_xgboost.joblib` plus `models/real_metrics.json` are installed. The app deliberately does not display invented live data.
-
-Additional endpoints:
-
-- **Published historical benchmark:** `GET /api/historical-benchmark`
-- **Local historical held-out samples:** `GET /api/historical-samples?limit=20` (requires dataset and trained model)
-
-Start `run.py` and visit:
-
-- **Historical model evaluation:** http://127.0.0.1:8000/api/real-model
-- **Historical inference API:** `POST /api/score-real` at http://127.0.0.1:8000/docs
-
-The historical inference API requires exactly 30 numeric inputs: `Time`, `V1`–`V28`, and `Amount`. They are not interchangeable with the default eight dashboard inputs.
-
-## API controls and reliability
-
-- Set `FRAUDSHIELD_API_KEY` to require the `X-API-Key` header on non-health API routes. This is **optional** for trusted local demos; leaving it unset is not appropriate for public exposure. Do not embed secrets in frontend JavaScript.
-- `FRAUDSHIELD_RATE_LIMIT` defaults to **120 requests per minute per client IP per process**. This basic in-memory safeguard is not distributed rate limiting.
-- The sample Docker configuration uses development credentials and is **not hardened for the public internet**. Public deployment would require secret management, TLS, network controls, stronger authentication, and shared rate limiting.
-- Kafka event IDs make database writes idempotent for redelivery of the same event ID; client retries with new event IDs are not deduplicated.
-
-## Code map
+The stack runs `api`, `postgres`, `kafka`, `worker`, and `streamlit`. The browser dashboard is at http://localhost:8000; optional Streamlit analytics is at http://localhost:8501.
 
 ```text
-app/
-  main.py             FastAPI routes, dashboard and Kafka producer
-  risk.py             Eight-feature synthetic model inference
-  real_risk.py        Thirty-feature historical model inference
-  schemas.py          Request validation
-  db.py               SQLite/PostgreSQL models and sessions
-  worker.py           Kafka consumer
-  static/             HTML/CSS/JavaScript dashboard
-ml/
-  train.py            Synthetic data and XGBoost training
-  train_real.py       Historical ULB data training and evaluation
-benchmarks/
-  real_metrics.json   Published historical held-out metrics
-tests/
-  test_api.py         API and event-ID behavior
-  test_validation.py  Input validation
-  test_real_model.py  Historical inference input checks
-  test_benchmark_report.py Published metrics checks
-  smoke_compose.py    Docker/Kafka/PostgreSQL integration smoke test
-compose.yaml          Local multi-service stack
-streamlit_app.py      Additional analytics interface
+Synthetic demo: Browser → FastAPI → XGBoost → SQLite
+Docker ingest:  Browser → FastAPI → Kafka → worker → XGBoost → PostgreSQL
+Historical:     ULB features → FastAPI /api/score-real → separate XGBoost model
 ```
 
-## Tests
+Use `docker compose down` to stop. **`docker compose down -v` also removes stored demo data and model volumes.** Duplicate Kafka deliveries with the same event ID are deduplicated; separate client retries with new IDs are not.
+
+To run Streamlit without Docker, keep the local API running and use:
+
+```powershell
+.venv\Scripts\python.exe -m streamlit run streamlit_app.py
+```
+
+## Tests and safeguards
 
 ```bash
 python -m pytest -q
 ```
 
-GitHub Actions runs Python tests and a Docker integration job for pushes and pull requests. See [Actions](../../actions) for the latest status; a green unit-test job is not a substitute for production reliability validation.
+[GitHub Actions](../../actions) runs Python tests, a JavaScript syntax check, and Docker/Kafka/PostgreSQL integration. These checks validate the implemented paths, not production reliability or real-world fraud detection.
 
-## Interview-ready summary
+An optional `FRAUDSHIELD_API_KEY` requires `X-API-Key` on guarded API routes. `FRAUDSHIELD_RATE_LIMIT` defaults to 120 requests per minute per IP **per process**. These are local-demo safeguards, not a public authentication or distributed rate-limiting solution. The sample Compose credentials are for development; do not expose the stack publicly without proper security configuration.
 
-> Built FraudShield, an educational fraud-risk scoring application using XGBoost, FastAPI, Kafka, PostgreSQL, Docker, and interactive dashboards. Developed a separate historical-data model evaluated on 283,726 cleaned ULB credit-card transactions, achieving 0.9815 ROC-AUC and 0.7906 PR-AUC on a chronological held-out test set. Added duplicate-event protection, API access controls, and automated testing.
+## Repository guide
+
+| Path | Purpose |
+|---|---|
+| `app/main.py`, `app/schemas.py` | FastAPI routes and request validation |
+| `app/risk.py`, `app/real_risk.py` | Separate synthetic and historical inference |
+| `app/db.py`, `app/worker.py` | Persistence and Kafka consumer |
+| `app/static/`, `streamlit_app.py` | Browser dashboard and optional analytics |
+| `ml/train.py`, `ml/train_real.py` | Synthetic and historical training pipelines |
+| `benchmarks/real_metrics.json` | Published held-out benchmark |
+| `tests/`, `compose.yaml` | Automated tests and multi-service setup |
+
+## Project summary
+
+Built an educational fraud-risk scoring application with a FastAPI inference service, XGBoost, Kafka, PostgreSQL, Docker, and two distinct dashboard modes. Evaluated the historical ULB model on 56,746 chronologically held-out transactions (ROC-AUC 0.9815; average precision 0.7906), implemented Kafka event deduplication, and added CI-based tests.
 
 ## License
 
-No open-source license has been selected yet. Repository visibility alone does not grant reuse rights.
+No repository-wide open-source license has been selected. Public visibility does not grant permission to reuse the source.
