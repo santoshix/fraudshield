@@ -119,6 +119,64 @@ def score_real(features: dict[str, float]):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
+@app.get("/api/historical-benchmark", dependencies=[Depends(api_guard)])
+def historical_benchmark():
+    """Published, reproducible held-out results; no local model required."""
+    report = Path(__file__).resolve().parents[1] / "benchmarks" / "real_metrics.json"
+    if not report.is_file():
+        raise HTTPException(status_code=503, detail="Published benchmark report unavailable")
+    return json.loads(report.read_text(encoding="utf-8"))
+
+
+@app.get("/api/historical-samples", dependencies=[Depends(api_guard)])
+def historical_samples(limit: int = Query(20, ge=1, le=30)):
+    """Score sampled held-out ULB rows only when the local dataset and model exist."""
+    import numpy as np
+    import pandas as pd
+    from ml.train_real import DATA_PATH, FEATURES
+    from app.real_risk import load_real_model
+
+    if not DATA_PATH.is_file():
+        raise HTTPException(
+            status_code=503,
+            detail="Historical dataset not installed locally. Place ULB creditcard.csv in data/.",
+        )
+    try:
+        model, model_metrics = load_real_model()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    df = pd.read_csv(DATA_PATH)
+    required = FEATURES + ["Class"]
+    if not set(required).issubset(df.columns):
+        raise HTTPException(status_code=422, detail="Historical CSV is missing required columns")
+    df = df[required].dropna().drop_duplicates()
+    df = df.sort_values("Time", kind="stable").reset_index(drop=True)
+    if len(df) != model_metrics.get("rows"):
+        raise HTTPException(status_code=409, detail="Dataset does not match trained model report. Retrain using this CSV.")
+    test = df.iloc[int(len(df) * 0.8):]
+    positions = np.linspace(0, len(test) - 1, min(limit, len(test)), dtype=int)
+    selected = test.iloc[positions]
+    probs = model.predict_proba(selected[FEATURES])[:, 1]
+    threshold = float(model_metrics["decision_threshold"])
+    return {
+        "source": "Local ULB chronological held-out test split",
+        "test_rows": len(test),
+        "decision_threshold": threshold,
+        "rows": [
+            {
+                "sample": int(pos + 1),
+                "time_seconds": float(row["Time"]),
+                "amount": float(row["Amount"]),
+                "actual_fraud": bool(int(row["Class"])),
+                "fraud_probability": round(float(prob), 6),
+                "flagged_for_review": bool(prob >= threshold),
+            }
+            for pos, (_, row), prob in zip(positions, selected.iterrows(), probs)
+        ],
+        "note": "Historical anonymized data only. Not live transactions or validated current-payment predictions.",
+    }
+
+
 @app.get("/api/transactions", dependencies=[Depends(api_guard)])
 def transactions(limit: int = Query(50, ge=1, le=500), db: Session = Depends(get_db)):
     results = db.scalars(select(Transaction).order_by(Transaction.created_at.desc(), Transaction.id.desc()).limit(limit)).all()
