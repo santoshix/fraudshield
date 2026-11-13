@@ -4,7 +4,7 @@
 
 **Historical-data held-out benchmark:** ROC-AUC **0.9815** · Average precision (PR-AUC) **0.7906** · Precision **88.33%** · Recall **71.62%** · F1 **0.7910**
 
-> **Scope and safety:** FraudShield is a student portfolio project, not a real payment processor or production fraud decision system. The interactive demo uses synthetic transactions, and the historical benchmark has not been validated for modern, live banking use. Risk scores are estimates, not verified fraud. Do not use it for real financial decisions.
+> **Scope and safety:** FraudShield is a student portfolio project, not a real payment processor or production fraud decision system. The historical dashboard shows published real-data benchmark metrics, while the optional synthetic simulator uses artificial transactions. The historical benchmark has not been validated for modern, live banking use. Risk scores are estimates, not verified fraud. Do not use it for real financial decisions.
 
 ![FraudShield dashboard mockup](dashboard_mockup.png)
 
@@ -31,7 +31,7 @@ Historical model: 30 ULB input features → FastAPI /api/score-real
                                           → separately trained XGBoost
 ```
 
-The default UI does **not** automatically use the historical model; the models have different input schemas.
+The browser dashboard defaults to a **Historical real data** tab with published ULB held-out metrics and optional, locally scored held-out samples. The separate **Synthetic demo** tab retains the eight-feature simulator, chart, Kafka demo and generated transactions. These two modes use different model input schemas and their predictions are never pooled.
 
 ## Historical fraud benchmark
 
@@ -80,7 +80,7 @@ Open:
 - **Dashboard:** http://127.0.0.1:8000
 - **API documentation:** http://127.0.0.1:8000/docs
 
-In the dashboard, click **Generate 55 demo transactions**, adjust transaction features, and try **Analyze transaction**. **Stream event** scores directly in local mode, but uses Kafka when the Docker configuration is enabled.
+In the dashboard, choose **Synthetic demo**, click **Generate 55 demo transactions**, adjust transaction features, and try **Analyze transaction**. **Stream event** scores directly in local mode, but uses Kafka when the Docker configuration is enabled.
 
 **Static preview only:** open [`dashboard_preview.html`](dashboard_preview.html) in a browser; it shows mock data and its buttons do not run the model.
 
@@ -120,7 +120,7 @@ Use your virtual-environment Python where appropriate. This writes `models/fraud
 
 **Option B — use the separately provided trained ZIP:** Extract its `models/` directory to the project root, using model files from a source you trust. Serialized joblib files can execute code on load; **never load untrusted model binaries**.
 
-Start `run.py` and visit:
+Start `run.py` and open the **Historical real data** tab at http://127.0.0.1:8000. The published benchmark cards work without the optional CSV or model. Click **Load real held-out predictions** to score 20 spread-out historical test rows once both `data/creditcard.csv` and `models/fraud_real_xgboost.joblib` plus `models/real_metrics.json` are installed. The app deliberately does not display invented live data.\n\nAdditional endpoints:\n\n- **Published historical benchmark:** `GET /api/historical-benchmark`\n- **Local historical held-out samples:** `GET /api/historical-samples?limit=20` (requires dataset and trained model)\n\nStart `run.py` and visit:
 
 - **Historical model evaluation:** http://127.0.0.1:8000/api/real-model
 - **Historical inference API:** `POST /api/score-real` at http://127.0.0.1:8000/docs
