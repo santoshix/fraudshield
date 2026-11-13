@@ -26,6 +26,8 @@ STATIC = Path(__file__).parent / "static"
 _request_times = defaultdict(deque)
 
 def api_guard(request: Request):
+    if os.getenv("FRAUDSHIELD_PUBLIC_READ_ONLY", "").lower() == "true" and request.method != "GET":
+        raise HTTPException(status_code=403, detail="This public demo is read-only. Clone the repository to run interactive scoring locally.")
     secret = os.getenv("FRAUDSHIELD_API_KEY", "")
     if secret and not secrets.compare_digest(request.headers.get("X-API-Key", ""), secret):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
@@ -57,7 +59,7 @@ def dashboard():
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "model": "XGBoost", "database": "connected", "kafka_enabled": bool(os.getenv("KAFKA_BOOTSTRAP_SERVERS"))}
+    return {"status": "ok", "model": "XGBoost", "database": "connected", "kafka_enabled": bool(os.getenv("KAFKA_BOOTSTRAP_SERVERS")), "public_read_only": os.getenv("FRAUDSHIELD_PUBLIC_READ_ONLY", "").lower() == "true"}
 
 @app.get("/api/model", dependencies=[Depends(api_guard)])
 def model_info():
