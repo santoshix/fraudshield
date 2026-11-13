@@ -1,7 +1,8 @@
-"""Optional real-world fraud benchmark using the public ULB credit-card dataset.
+"""Train and evaluate the ULB historical fraud model.
 
-Requires data/creditcard.csv downloaded separately from Kaggle. This does NOT
-replace the eight-feature synthetic demo model or its existing dashboard.
+The historical dashboard uses this model when local data and model artifacts
+are installed. The synthetic demo remains a separate eight-feature model.
+Requires data/creditcard.csv, downloaded separately from Kaggle.
 """
 import json
 from pathlib import Path
