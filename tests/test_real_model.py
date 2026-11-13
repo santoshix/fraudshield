@@ -46,3 +46,22 @@ def test_historical_samples_requires_local_files(monkeypatch, tmp_path):
     response = client.get("/api/historical-samples")
     assert response.status_code == 503
     assert "not installed" in response.json()["detail"]
+
+
+def test_dashboard_has_both_modes_and_no_literal_escaped_newlines():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    response = client.get("/")
+    assert response.status_code == 200
+    markup = response.text
+    assert 'id="historical-view"' in markup
+    assert 'id="synthetic-view"' in markup
+    assert 'id="historical-mode"' in markup
+    assert 'id="synthetic-mode"' in markup
+    assert r"\\n" not in markup
+    script = client.get("/static/app.js")
+    assert script.status_code == 200
+    assert "loadHistoricalReport()" in script.text
+    assert "selectMode('historical')" in script.text
