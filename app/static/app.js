@@ -15,3 +15,54 @@ $('demo-btn').addEventListener('click',async()=>{const b=$('demo-btn');b.disable
 $('stream-btn').addEventListener('click',async()=>{const b=$('stream-btn');b.disabled=true;try{const data=await req('/api/ingest',{method:'POST',body:JSON.stringify(formData())});if(data.result){showResult(data.result)}toast(data.mode==='kafka'?'Transaction queued in Kafka. Refresh to see it processed.':'Local mode: transaction analyzed immediately.');setTimeout(refresh,1600)}catch(e){toast(e.message)}finally{b.disabled=false}});
 $('refresh').addEventListener('click',()=>{refresh();toast('Dashboard updated')});
 refresh();setInterval(refresh,12000);
+
+
+// The two data modes are intentionally isolated: 8 synthetic signals vs 30 ULB signals.
+function selectMode(mode){
+  const historical=mode==='historical';
+  $('historical-view').hidden=!historical;
+  $('synthetic-view').hidden=historical;
+  $('historical-mode').classList.toggle('selected',historical);
+  $('synthetic-mode').classList.toggle('selected',!historical);
+  $('historical-mode').setAttribute('aria-pressed',String(historical));
+  $('synthetic-mode').setAttribute('aria-pressed',String(!historical));
+}
+$('historical-mode').addEventListener('click',()=>selectMode('historical'));
+$('synthetic-mode').addEventListener('click',()=>selectMode('synthetic'));
+async function loadHistoricalReport(){
+  try{
+    const m=await req('/api/historical-benchmark');
+    $('historical-total').textContent=number(m.rows);
+    $('historical-test').textContent=number(m.test_rows);
+    $('historical-auc').textContent=Number(m.roc_auc).toFixed(4);
+    $('historical-ap').textContent=Number(m.average_precision).toFixed(4);
+    $('historical-precision').textContent=(m.precision*100).toFixed(2)+'%';
+    $('historical-recall').textContent=(m.recall*100).toFixed(2)+'%';
+    $('historical-f1').textContent=Number(m.f1).toFixed(4);
+    $('historical-threshold').textContent=Number(m.decision_threshold).toFixed(2);
+    $('historical-status').textContent='Published benchmark loaded. Sample predictions require the local CSV and model.';
+  }catch(err){$('historical-status').textContent='Benchmark unavailable: '+err.message}
+}
+$('historical-load').addEventListener('click',async()=>{
+  const button=$('historical-load');
+  button.disabled=true;
+  $('historical-status').textContent='Loading locally evaluated historical rows…';
+  try{
+    const data=await req('/api/historical-samples?limit=20');
+    const body=$('historical-rows');
+    body.replaceChildren();
+    for(const r of data.rows){
+      const tr=document.createElement('tr');
+      const fields=[r.sample,Math.round(r.time_seconds),money(r.amount),r.actual_fraud?'Fraud':'Not fraud',(r.fraud_probability*100).toFixed(3)+'%',r.flagged_for_review?'Review':'Not flagged'];
+      for(const value of fields){
+        const td=document.createElement('td');td.textContent=String(value);tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+    $('historical-status').textContent=data.rows.length+' sampled held-out transactions scored with the local historical model. These are historical records, not a live feed.';
+  }catch(err){
+    $('historical-status').textContent='Real-data samples unavailable: '+err.message;
+  }finally{button.disabled=false}
+});
+selectMode('historical');
+loadHistoricalReport();
