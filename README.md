@@ -53,14 +53,6 @@ Full metrics, including walk-forward results: [`benchmarks/real_metrics.json`](b
 
 **Limitations:** Historical data and anonymized features limit interpretation; the test metrics do not demonstrate robustness to current transaction patterns, dataset drift, or a real payments environment.
 
-## Publish a safe live portfolio demo on Render
-
-A deployment Blueprint is included in [`render.yaml`](render.yaml). Connect your GitHub repository to Render, choose **New → Blueprint**, select this repository and deploy the `fraudshield-demo` service. Render provides the URL after a successful deployment. The Blueprint uses a free Python web service and enables `FRAUDSHIELD_PUBLIC_READ_ONLY=true`.
-
-**What visitors can do:** browse the real ULB historical held-out benchmark and inspect the dashboard. The public server has no original ULB CSV or trained real-model binary, so local historical record scoring is unavailable. Synthetic scoring and database writes are disabled on the hosted public demo. This prevents visitors from generating transactions on a shared public instance; for interactive synthetic scoring, run the project locally. Historical benchmark performance is not evidence of live payment performance.
-
-Free hosts may cold-start and have ephemeral storage. Do not represent the public demo as a live transaction-processing system.
-
 ## Quick start — working synthetic demo
 
 Install **Python 3.11 or 3.12**, clone this repository, and open its root in a terminal.
