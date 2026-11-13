@@ -20,3 +20,27 @@ def test_nonfinite_inputs_rejected_without_loading_model():
     features["Amount"] = np.inf
     with pytest.raises(ValueError, match="finite"):
         score_real_transaction(features)
+
+
+
+def test_published_historical_dashboard_report():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    with TestClient(app) as client:
+        response = client.get("/api/historical-benchmark")
+        assert response.status_code == 200
+        metrics = response.json()
+        assert metrics["rows"] == 283726
+        assert metrics["test_rows"] == 56746
+        assert metrics["roc_auc"] == 0.9815
+
+
+def test_historical_samples_requires_local_files(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    import ml.train_real as training
+    monkeypatch.setattr(training, "DATA_PATH", tmp_path / "missing.csv")
+    with TestClient(app) as client:
+        response = client.get("/api/historical-samples")
+        assert response.status_code == 503
+        assert "not installed" in response.json()["detail"]
